@@ -1,0 +1,38 @@
+# Configuration files
+config.php
+.env
+
+# Logs
+logs/*.log
+logs/*.txt
+!logs/.gitkeep
+
+# Uploads  
+uploads/*
+!uploads/.gitkeep
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Dependencies
+node_modules/
+vendor/
+composer.lock
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+
+# Security
+*.key
+*.pem
+*.crt

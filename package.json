@@ -1,0 +1,52 @@
+{
+  "name": "v3ntom-esport-framework",
+  "version": "1.0.0",
+  "description": "Complete E-Sport Community Management System with Discord & TeamSpeak Integration",
+  "main": "index.php",
+  "scripts": {
+    "build": "npm run build-css && npm run minify-js",
+    "build-css": "postcss assets/css/main.css -o assets/css/main.min.css",
+    "minify-js": "uglifyjs assets/js/main.js -o assets/js/main.min.js",
+    "watch": "npm run watch-css & npm run watch-js",
+    "watch-css": "postcss assets/css/main.css -o assets/css/main.min.css --watch",
+    "dev": "php -S localhost:8000",
+    "test": "php vendor/bin/phpunit tests/",
+    "lint": "php vendor/bin/phpcs --standard=PSR12 includes/ api/ admin/",
+    "lint-fix": "php vendor/bin/phpcbf --standard=PSR12 includes/ api/ admin/",
+    "security-check": "php vendor/bin/security-checker security:check composer.lock"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/v3ntom/esport-framework.git"
+  },
+  "keywords": [
+    "esport",
+    "discord",
+    "teamspeak",
+    "community",
+    "management",
+    "php",
+    "mysql",
+    "gaming",
+    "clan",
+    "guild"
+  ],
+  "author": "V3NTOM Team <dev@v3ntom.de>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/v3ntom/esport-framework/issues"
+  },
+  "homepage": "https://github.com/v3ntom/esport-framework#readme",
+  "devDependencies": {
+    "postcss": "^8.4.0",
+    "postcss-cli": "^10.1.0",
+    "autoprefixer": "^10.4.0",
+    "cssnano": "^6.0.0",
+    "uglify-js": "^3.17.0"
+  },
+  "engines": {
+    "php": ">=7.4",
+    "mysql": ">=5.7",
+    "node": ">=14.0.0"
+  }
+}

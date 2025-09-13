@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./logs:/var/www/html/logs
+      - ./uploads:/var/www/html/uploads
+    environment:
+      - DB_HOST=db
+      - DB_NAME=v3ntom_esport
+      - DB_USER=v3ntom
+      - DB_PASS=secure_password
+    depends_on:
+      - db
+    networks:
+      - v3ntom-network
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: v3ntom_esport
+      MYSQL_USER: v3ntom
+      MYSQL_PASSWORD: secure_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - v3ntom-network
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: v3ntom
+      PMA_PASSWORD: secure_password
+    depends_on:
+      - db
+    networks:
+      - v3ntom-network
+
+volumes:
+  mysql_data:
+
+networks:
+  v3ntom-network:
+    driver: bridge

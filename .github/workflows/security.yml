@@ -1,0 +1,22 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security audit
+      uses: securecodewarrior/github-action-add-sarif@v1
+      with:
+        sarif-file: security-audit.sarif
+        
+    - name: Check for known vulnerabilities
+      run: |
+        composer audit
