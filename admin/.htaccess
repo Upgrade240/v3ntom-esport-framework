@@ -1,0 +1,9 @@
+DirectoryIndex index.php
+Options -Indexes
+
+RewriteEngine On
+RewriteRule ^$ index.php [L]
+
+<Files "*.php">
+    Require all granted
+</Files>
