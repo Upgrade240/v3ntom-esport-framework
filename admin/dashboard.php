@@ -9,10 +9,48 @@ Security::checkAuth('admin.settings');
 $config = include '../config.php';
 $db = new Database($config);
 $permissions = new PermissionManager($db);
+
 // Get statistics
 $stats = $db->getStatistics();
 
-// Recent activity
+// Discord Integration Statistics
+$discordStats = [
+    'discord_roles' => 0,
+    'synced_members' => 0,
+    'last_sync' => null,
+    'bot_status' => 'unknown'
+];
+
+// Check if Discord tables exist and get stats
+try {
+    $discordRolesResult = $db->query("SELECT COUNT(*) as count FROM discord_roles");
+    if ($discordRolesResult) {
+        $discordStats['discord_roles'] = $db->fetchOne($discordRolesResult)['count'];
+    }
+} catch (Exception $e) {
+    // Discord tables not yet created
+}
+
+try {
+    $syncedMembersResult = $db->query("SELECT COUNT(DISTINCT user_id) as count FROM user_discord_roles");
+    if ($syncedMembersResult) {
+        $discordStats['synced_members'] = $db->fetchOne($syncedMembersResult)['count'];
+    }
+} catch (Exception $e) {
+    // Discord tables not yet created
+}
+
+try {
+    $lastSyncResult = $db->query("SELECT MAX(completed_at) as last_sync FROM discord_sync_log WHERE status = 'completed'");
+    if ($lastSyncResult) {
+        $lastSync = $db->fetchOne($lastSyncResult);
+        $discordStats['last_sync'] = $lastSync['last_sync'];
+    }
+} catch (Exception $e) {
+    // Discord tables not yet created
+}
+
+// Recent activity with Discord integration
 $recentActivity = $db->fetchAll($db->query("
     SELECT 'user_joined' as type, u.username, u.created_at as timestamp, 'Neuer Benutzer registriert' as description
     FROM users u 
@@ -113,7 +151,7 @@ $systemInfo = [
         
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -126,6 +164,11 @@ $systemInfo = [
             display: flex;
             align-items: center;
             gap: 1rem;
+            transition: transform 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
         }
         
         .stat-icon {
@@ -142,6 +185,7 @@ $systemInfo = [
         .stat-icon.teams { background: rgba(87, 242, 135, 0.2); color: var(--success); }
         .stat-icon.events { background: rgba(255, 165, 0, 0.2); color: var(--warning); }
         .stat-icon.tickets { background: rgba(237, 66, 69, 0.2); color: var(--danger); }
+        .stat-icon.discord { background: rgba(114, 137, 218, 0.2); color: #7289da; }
         
         .stat-info h3 {
             font-size: 2rem;
@@ -153,6 +197,12 @@ $systemInfo = [
         .stat-info p {
             color: var(--text-muted);
             font-size: 0.9rem;
+        }
+
+        .stat-info small {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.8rem;
         }
         
         .content-grid {
@@ -166,6 +216,7 @@ $systemInfo = [
             border-radius: 8px;
             padding: 1.5rem;
             border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
         }
         
         .card h3 {
@@ -279,6 +330,61 @@ $systemInfo = [
             background: var(--success);
             color: black;
         }
+
+        .action-btn.discord {
+            background: #7289da;
+        }
+
+        .discord-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.offline {
+            background: var(--danger);
+        }
+
+        .discord-quick-sync {
+            background: var(--darker);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .sync-button {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .sync-status {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert-info {
+            background: rgba(88, 101, 242, 0.1);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
         
         @media (max-width: 768px) {
             .content-grid {
@@ -287,6 +393,10 @@ $systemInfo = [
             
             .container {
                 padding: 1rem;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -306,6 +416,7 @@ $systemInfo = [
         <a href="dashboard.php" class="active"><i class="fas fa-home"></i> Dashboard</a>
         <a href="users.php"><i class="fas fa-users"></i> Benutzer</a>
         <a href="teams.php"><i class="fas fa-users-cog"></i> Teams</a>
+        <a href="discord-management.php"><i class="fab fa-discord"></i> Discord</a>
         <a href="moderation.php"><i class="fas fa-shield-alt"></i> Moderation</a>
         <a href="settings.php"><i class="fas fa-cog"></i> Einstellungen</a>
     </nav>
@@ -336,13 +447,28 @@ $systemInfo = [
             </div>
             
             <div class="stat-card">
+                <div class="stat-icon discord">
+                    <i class="fab fa-discord"></i>
+                </div>
+                <div class="stat-info">
+                    <h3><?= number_format($discordStats['discord_roles']) ?></h3>
+                    <p>Discord Rollen</p>
+                    <small style="color: #7289da;"><?= number_format($discordStats['synced_members']) ?> synchronisierte Mitglieder</small>
+                    <div class="discord-status">
+                        <div class="status-dot <?= $discordStats['bot_status'] === 'online' ? '' : 'offline' ?>"></div>
+                        <span style="font-size: 0.8rem;">Integration aktiv</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
                 <div class="stat-icon events">
                     <i class="fas fa-calendar"></i>
                 </div>
                 <div class="stat-info">
                     <h3><?= number_format($stats['upcoming_events']) ?></h3>
                     <p>Kommende Events</p>
-                    <small style="color: var(--warning);"><?= $stats['pending_applications'] ?> Bewerbungen</small>
+                    <small style="color: var(--warning);"><?= $stats['pending_applications'] ?> offene Bewerbungen</small>
                 </div>
             </div>
             
@@ -357,6 +483,20 @@ $systemInfo = [
                 </div>
             </div>
         </div>
+
+        <?php if ($discordStats['discord_roles'] == 0 && $discordStats['synced_members'] == 0): ?>
+        <!-- Discord Setup Alert -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Discord-Integration einrichten:</strong> 
+                Synchronisieren Sie Discord-Rollen und Mitglieder für die vollständige Integration.
+                <a href="discord-management.php" style="color: var(--primary); margin-left: 0.5rem;">
+                    <i class="fas fa-arrow-right"></i> Jetzt einrichten
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
         
         <!-- Content Grid -->
         <div class="content-grid">
@@ -406,6 +546,12 @@ $systemInfo = [
                             <span>Freier Speicher:</span>
                             <span><?= is_numeric($systemInfo['disk_usage']) ? round($systemInfo['disk_usage'] / 1024 / 1024 / 1024, 1) . ' GB' : 'N/A' ?></span>
                         </div>
+                        <?php if ($discordStats['last_sync']): ?>
+                        <div class="info-item">
+                            <span>Letzte Discord-Sync:</span>
+                            <span><?= date('d.m H:i', strtotime($discordStats['last_sync'])) ?></span>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="quick-actions">
@@ -415,16 +561,81 @@ $systemInfo = [
                         <a href="teams.php" class="action-btn success">
                             <i class="fas fa-plus"></i> Team erstellen
                         </a>
+                        <a href="discord-management.php" class="action-btn discord">
+                            <i class="fab fa-discord"></i> Discord verwalten
+                        </a>
                         <a href="moderation.php" class="action-btn danger">
                             <i class="fas fa-shield-alt"></i> Moderation
                         </a>
-                        <a href="settings.php" class="action-btn">
-                            <i class="fas fa-cog"></i> Einstellungen
-                        </a>
+                    </div>
+                </div>
+
+                <!-- Discord Quick Actions -->
+                <div class="card">
+                    <h3><i class="fab fa-discord"></i> Discord Quick-Sync</h3>
+                    <div class="discord-quick-sync">
+                        <button class="action-btn sync-button discord" onclick="quickSyncDiscord()">
+                            <i class="fas fa-sync-alt"></i> Schnell-Synchronisation
+                        </button>
+                        <div class="sync-status" id="syncStatus">
+                            Bereit für Synchronisation
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        async function quickSyncDiscord() {
+            const button = document.querySelector('.sync-button');
+            const status = document.getElementById('syncStatus');
+            
+            // Button deaktivieren und Loading anzeigen
+            button.disabled = true;
+            button.innerHTML = '<div style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div> Synchronisiere...';
+            status.textContent = 'Synchronisation läuft...';
+            
+            try {
+                const response = await fetch('/api/discord.php?action=sync-roles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    status.textContent = data.success ? 'Synchronisation erfolgreich!' : 'Fehler bei Synchronisation';
+                    status.style.color = data.success ? 'var(--success)' : 'var(--danger)';
+                    
+                    if (data.success) {
+                        // Seite nach 2 Sekunden neu laden um Statistiken zu aktualisieren
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
+                } else {
+                    throw new Error('Netzwerkfehler');
+                }
+            } catch (error) {
+                status.textContent = 'Fehler: ' + error.message;
+                status.style.color = 'var(--danger)';
+            } finally {
+                // Button wieder aktivieren
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-sync-alt"></i> Schnell-Synchronisation';
+                    if (!status.textContent.includes('erfolgreich')) {
+                        status.textContent = 'Bereit für Synchronisation';
+                        status.style.color = 'var(--text-muted)';
+                    }
+                }, 3000);
+            }
+        }
+
+        // CSS Animation für Loading Spinner
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+    </script>
 </body>
 </html>
