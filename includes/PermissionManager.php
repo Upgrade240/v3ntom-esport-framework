@@ -285,6 +285,52 @@ class PermissionManager {
         return true;
     }
     
+
+    public function canManageUser($managerId, $targetUserId) {
+        if ($managerId === $targetUserId) {
+            return true;
+        }
+
+        if ($this->hasPermission($managerId, '*') || $this->hasPermission($managerId, 'members.edit')) {
+            return $this->canModerateUser($managerId, $targetUserId);
+        }
+
+        return false;
+    }
+
+    public function canManageTeam($userId, $teamId) {
+        if ($this->hasPermission($userId, '*') || $this->hasPermission($userId, 'teams.edit') || $this->hasPermission($userId, 'teams.delete')) {
+            return true;
+        }
+
+        if ($this->hasPermission($userId, 'teams.manage_own')) {
+            $team = $this->db->getTeamById($teamId);
+            if ($team && (int)$team['leader_id'] === (int)$userId) {
+                return true;
+            }
+
+            $teamMember = $this->db->fetchOne($this->db->query(
+                "SELECT id FROM team_members WHERE team_id = ? AND user_id = ? AND role IN ('leader', 'co_leader')",
+                [$teamId, $userId]
+            ));
+
+            return (bool)$teamMember;
+        }
+
+        return false;
+    }
+
+    public function canManageGameArea($userId, $gameKey) {
+        if ($this->hasPermission($userId, '*') || $this->hasPermission($userId, 'teams.edit')) {
+            return true;
+        }
+
+        $normalizedGame = strtoupper($gameKey);
+        $permission = 'teams.manage_area.' . strtolower($normalizedGame);
+
+        return $this->hasPermission($userId, $permission);
+    }
+
     // Define all available permissions in the system
     public static function getAllPermissions() {
         return [
@@ -316,6 +362,9 @@ class PermissionManager {
             'teams.delete' => 'Delete teams',
             'teams.manage_own' => 'Manage own teams (as leader)',
             'teams.manage_members' => 'Manage team members',
+            'teams.manage_area.cs2' => 'Manage CS2 eSports area',
+            'teams.manage_area.lol' => 'Manage LoL eSports area',
+            'teams.manage_area.rl' => 'Manage RL eSports area',
             'teams.apply' => 'Apply to teams',
             
             // Applications
