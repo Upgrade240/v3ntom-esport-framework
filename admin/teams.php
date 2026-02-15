@@ -4,11 +4,15 @@ require_once '../config.php';
 require_once '../includes/Database.php';
 require_once '../includes/Security.php';
 require_once '../includes/PermissionManager.php';
+require_once '../includes/DiscordIntegration.php';
+require_once '../includes/TeamManager.php';
 
 Security::checkAuth('admin.teams');
 $config = include '../config.php';
 $db = new Database($config);
 $permissions = new PermissionManager($db);
+$discord = new DiscordIntegration($config, $db);
+$teamManager = new TeamManager($db, $discord, $config);
 
 // Handle actions
 $message = '';
@@ -36,18 +40,18 @@ if ($_POST) {
                     ])
                 ];
                 
-                $teamId = $db->insert('teams', $teamData);
-                
-                // Add leader as team member
-                if ($teamData['leader_id']) {
-                    $db->insert('team_members', [
-                        'team_id' => $teamId,
-                        'user_id' => $teamData['leader_id'],
-                        'role' => 'leader'
-                    ]);
+                if (!in_array($teamData['game'], ['CS2', 'LoL', 'RL'], true)) {
+                    throw new Exception('Ungültiges Spiel. Erlaubt: CS2, LoL, RL');
                 }
-                
-                $message = 'Team "' . htmlspecialchars($teamData['name']) . '" erfolgreich erstellt';
+
+                $leaderId = $teamData['leader_id'] ?: $_SESSION['user_id'];
+                $result = $teamManager->createTeam($teamData, $leaderId);
+
+                if (!$result['success']) {
+                    throw new Exception($result['error'] ?? 'Unbekannter Fehler bei der Team-Erstellung');
+                }
+
+                $message = 'Team "' . htmlspecialchars($teamData['name']) . '" erfolgreich erstellt inkl. Discord-Rolle';
             } catch (Exception $e) {
                 $error = 'Fehler beim Erstellen des Teams: ' . $e->getMessage();
             }

@@ -34,7 +34,7 @@ class TeamManager {
             // Discord-Rolle für das Team erstellen
             $roleColor = $this->generateTeamColor($teamData['name']);
             $discordRole = $this->discord->createDiscordRole(
-                "Team: " . $teamData['name'],
+                $teamData['name'] . " (" . strtoupper($teamData['game']) . ")",
                 $roleColor,
                 0, // Keine besonderen Berechtigungen
                 true, // Separat in Mitgliederliste anzeigen
